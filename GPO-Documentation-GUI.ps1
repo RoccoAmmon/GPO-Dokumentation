@@ -8,7 +8,7 @@
 .NOTES
     Autor:      Rocco Ammon
     Datum:      29.05.2026
-    Version:    2.0.3
+    Version:    2.1
     Benötigt:   ActiveDirectory-Modul, GroupPolicy-Modul, RSAT-Tools
     Installiert fehlende RSAT-Features automatisch (erfordert Admin-Rechte).
 .LINK
@@ -132,6 +132,17 @@ $script:langData = @{
         recentlyModified='Kürzlich geändert (letzte 30 Tage)'
         actionReplace='Ersetzen'; actionUpdate='Aktualisieren'; actionCreate='Erstellen'; actionDelete='Loeschen'
         configured='Konfiguriert'; enabled='Aktiviert'; disabled='Deaktiviert'
+        darkMode='Dark Mode'; lightMode='Light Mode'
+        orphanedGpos='Verwaiste GPOs'; orphanedDesc='GPOs ohne OU-Verknüpfung'; noOrphaned='Keine verwaisten GPOs gefunden.'
+        orphanedFound='{0} verwaiste GPO(s) gefunden:'; loadingOrphaned='Suche verwaiste GPOs...'
+        historyBtn='Änderungshistorie'; historyTitle='Änderungshistorie (letzte 90 Tage)'
+        diffBtn='Vergleichen'; diffTitle='GPO-Vergleich'; diffSelectTwo='Bitte genau 2 GPOs auswählen zum Vergleichen.'
+        diffOnlyIn='Nur in'; diffDifference='Unterschied'; diffSetting='Einstellung'; diffGpo1='GPO 1'; diffGpo2='GPO 2'
+        conflictsTitle='Konflikterkennung'; conflictsDesc='Einstellungen die in mehreren GPOs auf gleichen OUs konfiguriert sind'
+        noConflicts='Keine Konflikte erkannt.'; conflictSetting='Einstellung'; conflictGpos='Betroffene GPOs'; conflictOu='Gemeinsame OU'
+        duplicatesTitle='Doppelte Einstellungen'; duplicatesDesc='Einstellungen die in mehreren GPOs konfiguriert sind'
+        noDuplicates='Keine doppelten Einstellungen gefunden.'; duplicateCount='Anzahl GPOs'
+        pdfExport='PDF-Export'; creatingPdf='Erstelle PDF...'; pdfError='PDF-Erstellung fehlgeschlagen (Edge/Chrome nicht gefunden)'
     }
     en = @{
         windowTitle='GPO Documentation'; domainPrefix='Domain:'; searchLabel='Search:'
@@ -171,6 +182,17 @@ $script:langData = @{
         recentlyModified='Recently modified (last 30 days)'
         actionReplace='Replace'; actionUpdate='Update'; actionCreate='Create'; actionDelete='Delete'
         configured='Configured'; enabled='Enabled'; disabled='Disabled'
+        darkMode='Dark Mode'; lightMode='Light Mode'
+        orphanedGpos='Orphaned GPOs'; orphanedDesc='GPOs without OU link'; noOrphaned='No orphaned GPOs found.'
+        orphanedFound='{0} orphaned GPO(s) found:'; loadingOrphaned='Searching for orphaned GPOs...'
+        historyBtn='Change History'; historyTitle='Change History (last 90 days)'
+        diffBtn='Compare'; diffTitle='GPO Comparison'; diffSelectTwo='Please select exactly 2 GPOs to compare.'
+        diffOnlyIn='Only in'; diffDifference='Difference'; diffSetting='Setting'; diffGpo1='GPO 1'; diffGpo2='GPO 2'
+        conflictsTitle='Conflict Detection'; conflictsDesc='Settings configured in multiple GPOs on same OUs'
+        noConflicts='No conflicts detected.'; conflictSetting='Setting'; conflictGpos='Affected GPOs'; conflictOu='Common OU'
+        duplicatesTitle='Duplicate Settings'; duplicatesDesc='Settings configured in multiple GPOs'
+        noDuplicates='No duplicate settings found.'; duplicateCount='Number of GPOs'
+        pdfExport='PDF Export'; creatingPdf='Creating PDF...'; pdfError='PDF creation failed (Edge/Chrome not found)'
     }
 }
 function Set-AppLanguage { param([string]$Lang) $script:lang = $Lang; $script:L = $script:langData[$Lang] }
@@ -239,6 +261,7 @@ function Get-ActionText {
                 <ComboBoxItem Content="Deutsch"/>
                 <ComboBoxItem Content="English"/>
             </ComboBox>
+            <Button Name="btnDarkMode" Content="🌙 Dark Mode" FontSize="11" Padding="8,3" Margin="15,0,0,0" Background="#555"/>
         </StackPanel>
 
         <!-- Main Content -->
@@ -277,6 +300,11 @@ function Get-ActionText {
                             <ComboBoxItem Content="Teilweise"/>
                         </ComboBox>
                         <TextBlock Name="txtGpoCount" VerticalAlignment="Center" FontWeight="Normal" FontSize="12" Foreground="#666" Margin="10,0,0,0"/>
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Name="btnOrphaned" Content="🔍 Verwaiste GPOs" FontSize="11" Padding="8,3" Background="#8B5E3C"/>
+                        <Button Name="btnHistory" Content="🕐 Änderungshistorie" FontSize="11" Padding="8,3" Background="#5B7A3A"/>
+                        <Button Name="btnDiff" Content="⚖️ Vergleichen" FontSize="11" Padding="8,3" Background="#6B5B95"/>
                     </StackPanel>
                     <!-- GPO DataGrid -->
                     <DataGrid Name="gridGPO" AutoGenerateColumns="False" CanUserAddRows="False"
@@ -361,10 +389,11 @@ function Get-ActionText {
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Name="lblFormat" Text="Format:" VerticalAlignment="Center" FontWeight="Normal" FontSize="12" Margin="0,0,8,0"/>
-                    <ComboBox Name="cmbFormat" Width="130" FontWeight="Normal" FontSize="12" SelectedIndex="0">
+                    <ComboBox Name="cmbFormat" Width="150" FontWeight="Normal" FontSize="12" SelectedIndex="0">
                         <ComboBoxItem Content="HTML"/>
                         <ComboBoxItem Content="Markdown"/>
                         <ComboBoxItem Content="HTML + Markdown"/>
+                        <ComboBoxItem Content="PDF"/>
                     </ComboBox>
                     <CheckBox Name="chkDetailReport" Content="Detaillierter Bericht (GPO-XML)" VerticalAlignment="Center" FontWeight="Normal" FontSize="12" Margin="20,0,0,0" IsChecked="True"/>
                     <CheckBox Name="chkSaveRawXml" Content="Roh-XML speichern" VerticalAlignment="Center" FontWeight="Normal" FontSize="12" Margin="20,0,0,0"/>
@@ -391,7 +420,7 @@ function Get-ActionText {
             <StatusBarItem HorizontalAlignment="Right">
                 <StackPanel Orientation="Horizontal">
                     <ProgressBar Name="progressBar" Width="200" Height="16" Visibility="Collapsed" Margin="0,0,12,0"/>
-                    <TextBlock Name="txtVersionInfo" Text="v2.0.2 | Yasty25 | 28.05.2026" FontSize="10" Foreground="#999" VerticalAlignment="Center"/>
+                    <TextBlock Name="txtVersionInfo" Text="v2.1 | Rocco Ammon | github.com/RoccoAmmon/GPO-Dokumentation" FontSize="10" Foreground="#999" VerticalAlignment="Center"/>
                 </StackPanel>
             </StatusBarItem>
         </StatusBar>
@@ -436,6 +465,10 @@ $lblFormat          = $window.FindName("lblFormat")
 $lblOutputPath      = $window.FindName("lblOutputPath")
 $lblFilePrefix      = $window.FindName("lblFilePrefix")
 $txtFilePrefix      = $window.FindName("txtFilePrefix")
+$btnDarkMode        = $window.FindName("btnDarkMode")
+$btnOrphaned        = $window.FindName("btnOrphaned")
+$btnHistory         = $window.FindName("btnHistory")
+$btnDiff            = $window.FindName("btnDiff")
 
 # Sprache initialisieren
 if ($script:lang -eq 'en') { $cmbLanguage.SelectedIndex = 1 }
@@ -511,6 +544,10 @@ function Apply-Language {
     $btnExportSelected.Content = $L.exportSelected
     $btnExport.Content = $L.exportAll
     $txtStatus.Text = $L.statusReady
+    $btnDarkMode.Content = if ($script:isDarkMode) { "☀️ $($L.lightMode)" } else { "🌙 $($L.darkMode)" }
+    $btnOrphaned.Content = "🔍 $($L.orphanedGpos)"
+    $btnHistory.Content = "🕐 $($L.historyBtn)"
+    $btnDiff.Content = "⚖️ $($L.diffBtn)"
     # GPO-Status-Texte aktualisieren
     if ($script:allGpoItems) {
         $directVals = @('Direkt','Direct')
@@ -748,12 +785,19 @@ function Get-GPOSettingsFromXml {
         $extName = $ext.Name
         $settings = @()
         $extension = $ext.Extension
+        $seenKeys = @{}
 
         foreach ($node in $extension.ChildNodes) {
             if ($node -isnot [System.Xml.XmlElement]) { continue }
             $parsed = @(Parse-SettingNode -Node $node)
             if ($parsed.Count -gt 0) {
-                $settings += $parsed
+                foreach ($entry in $parsed) {
+                    $dedupKey = "$($entry.Name)|$($entry.Value)"
+                    if (-not $seenKeys.ContainsKey($dedupKey)) {
+                        $seenKeys[$dedupKey] = $true
+                        $settings += $entry
+                    }
+                }
             }
         }
 
@@ -1510,7 +1554,9 @@ function Export-GPOasHTML {
         [GpoItem[]]$GPOs,
         [string]$OutputPath,
         [bool]$Detailed = $true,
-        [string]$FilePrefix = ''
+        [string]$FilePrefix = '',
+        [hashtable]$DuplicateSettings = @{},
+        [array]$ConflictData = @()
     )
 
     $L = $script:L
@@ -1572,13 +1618,23 @@ function Export-GPOasHTML {
         .ou-tree .gpo-link { color: #0078D4; font-size: 0.9em; margin-left: 4px; }
         .ou-tree .gpo-link-disabled { color: #D13438; text-decoration: line-through; }
         .ou-tree .inheritance-blocked { color: #D13438; font-weight: 600; font-size: 0.85em; }
+        @page { size: landscape; margin: 10mm; }
         @media print {
+            body { font-size: 10px; line-height: 1.3; margin: 10px; }
+            h1 { font-size: 16px; }
+            h2 { font-size: 13px; }
+            h3 { font-size: 11px; }
+            h4 { font-size: 10px; }
+            table { font-size: 9px; }
+            th, td { padding: 4px 6px; }
             details.gpo-details { display: block; }
-            details.gpo-details > summary { display: block; }
+            details.gpo-details > summary { display: block; font-size: 12px; }
             .gpo-section { page-break-before: always; }
             .gpo-section:first-of-type { page-break-before: avoid; }
             .toggle-btn { display: none; }
             .back-to-top { display: none; }
+            .toc { font-size: 9px; padding: 10px; }
+            .meta-table { font-size: 8px; }
         }
     </style>
 </head>
@@ -1795,7 +1851,35 @@ function Export-GPOasHTML {
 </html>
 "@
 
-    $fullHtml = $htmlHeader + $tocHtml + $ouTreeHtml + $gpoSections + $htmlFooter
+    # Duplikate und Konflikte Sektionen
+    $analysisHtml = ""
+    if ($DuplicateSettings.Count -gt 0) {
+        $analysisHtml += "<div class=`"gpo-section`" style=`"border-color: #FF8C00;`">`n"
+        $analysisHtml += "<h2 style=`"color: #FF8C00;`">⚠️ $($L.duplicatesTitle)</h2>`n"
+        $analysisHtml += "<p><em>$($L.duplicatesDesc)</em></p>`n"
+        $analysisHtml += "<table><tr><th>$($L.settingLabel)</th><th>$($L.duplicateCount)</th><th>$($L.conflictGpos)</th></tr>`n"
+        foreach ($key in ($DuplicateSettings.Keys | Sort-Object)) {
+            $entry = $DuplicateSettings[$key]
+            $gpoNames = ($entry.GPOs | Sort-Object) -join ', '
+            $analysisHtml += "<tr><td>$([System.Web.HttpUtility]::HtmlEncode($key))</td><td>$($entry.GPOs.Count)</td><td>$([System.Web.HttpUtility]::HtmlEncode($gpoNames))</td></tr>`n"
+        }
+        $analysisHtml += "</table></div>`n"
+    }
+
+    if ($ConflictData.Count -gt 0) {
+        $analysisHtml += "<div class=`"gpo-section`" style=`"border-color: #D13438;`">`n"
+        $analysisHtml += "<h2 style=`"color: #D13438;`">🔥 $($L.conflictsTitle)</h2>`n"
+        $analysisHtml += "<p><em>$($L.conflictsDesc)</em></p>`n"
+        $analysisHtml += "<table><tr><th>$($L.conflictSetting)</th><th>$($L.conflictGpos)</th><th>$($L.conflictOu)</th></tr>`n"
+        foreach ($conflict in $ConflictData) {
+            $gpoNames = ($conflict.GPOs | Sort-Object) -join ', '
+            $ouNames = ($conflict.OUs | Sort-Object) -join ', '
+            $analysisHtml += "<tr><td>$([System.Web.HttpUtility]::HtmlEncode($conflict.Setting))</td><td>$([System.Web.HttpUtility]::HtmlEncode($gpoNames))</td><td>$([System.Web.HttpUtility]::HtmlEncode($ouNames))</td></tr>`n"
+        }
+        $analysisHtml += "</table></div>`n"
+    }
+
+    $fullHtml = $htmlHeader + $tocHtml + $ouTreeHtml + $gpoSections + $analysisHtml + $htmlFooter
     $fullHtml | Out-File -FilePath $htmlFile -Encoding UTF8
 
     return $htmlFile
@@ -1806,7 +1890,9 @@ function Export-GPOasMarkdown {
         [GpoItem[]]$GPOs,
         [string]$OutputPath,
         [bool]$Detailed = $true,
-        [string]$FilePrefix = ''
+        [string]$FilePrefix = '',
+        [hashtable]$DuplicateSettings = @{},
+        [array]$ConflictData = @()
     )
 
     $L = $script:L
@@ -1919,10 +2005,521 @@ function Export-GPOasMarkdown {
     }
 
     $md += "`n> $($L.generatedWith) | $(Get-Date -Format 'dd.MM.yyyy HH:mm:ss')`n"
+
+    # Duplikate und Konflikte anhängen
+    if ($DuplicateSettings.Count -gt 0) {
+        $md += "`n---`n`n## ⚠️ $($L.duplicatesTitle)`n`n"
+        $md += "*$($L.duplicatesDesc)*`n`n"
+        $md += "| $($L.settingLabel) | $($L.duplicateCount) | $($L.conflictGpos) |`n|---|---|---|`n"
+        foreach ($key in ($DuplicateSettings.Keys | Sort-Object)) {
+            $entry = $DuplicateSettings[$key]
+            $gpoNames = ($entry.GPOs | Sort-Object) -join ', '
+            $md += "| $key | $($entry.GPOs.Count) | $gpoNames |`n"
+        }
+    }
+
+    if ($ConflictData.Count -gt 0) {
+        $md += "`n---`n`n## 🔥 $($L.conflictsTitle)`n`n"
+        $md += "*$($L.conflictsDesc)*`n`n"
+        $md += "| $($L.conflictSetting) | $($L.conflictGpos) | $($L.conflictOu) |`n|---|---|---|`n"
+        foreach ($conflict in $ConflictData) {
+            $gpoNames = ($conflict.GPOs | Sort-Object) -join ', '
+            $ouNames = ($conflict.OUs | Sort-Object) -join ', '
+            $md += "| $($conflict.Setting) | $gpoNames | $ouNames |`n"
+        }
+    }
+
     $md | Out-File -FilePath $mdFile -Encoding UTF8
 
     return $mdFile
 }
+
+function Find-DuplicateSettings {
+    <#
+    .SYNOPSIS
+        Findet Einstellungen die in mehreren GPOs konfiguriert sind.
+    #>
+    param([GpoItem[]]$GPOs)
+
+    $settingMap = @{}
+
+    foreach ($gpo in $GPOs) {
+        try {
+            $reportXml = [xml](Get-GPOReport -Guid $gpo.Id -ReportType Xml)
+
+            # Computer-Einstellungen
+            $compExt = $reportXml.GPO.Computer.ExtensionData
+            if ($compExt) {
+                $sections = Get-GPOSettingsFromXml -ExtensionData $compExt
+                foreach ($section in $sections) {
+                    foreach ($s in $section.Settings) {
+                        $key = "[Computer] $($section.ExtensionName) > $($s.Name)"
+                        if (-not $settingMap.ContainsKey($key)) {
+                            $settingMap[$key] = @{ GPOs = [System.Collections.ArrayList]::new(); Values = [System.Collections.ArrayList]::new() }
+                        }
+                        # Nur hinzufügen wenn diese GPO noch nicht für diesen Key erfasst ist
+                        if ($gpo.DisplayName -notin $settingMap[$key].GPOs) {
+                            $settingMap[$key].GPOs.Add($gpo.DisplayName) | Out-Null
+                        }
+                        $settingMap[$key].Values.Add($s.Value) | Out-Null
+                        $settingMap[$key].Values.Add($s.Value) | Out-Null
+                    }
+                }
+            }
+
+            # Benutzer-Einstellungen
+            $userExt = $reportXml.GPO.User.ExtensionData
+            if ($userExt) {
+                $sections = Get-GPOSettingsFromXml -ExtensionData $userExt
+                foreach ($section in $sections) {
+                    foreach ($s in $section.Settings) {
+                        $key = "[User] $($section.ExtensionName) > $($s.Name)"
+                        if (-not $settingMap.ContainsKey($key)) {
+                            $settingMap[$key] = @{ GPOs = [System.Collections.ArrayList]::new(); Values = [System.Collections.ArrayList]::new() }
+                        }
+                        # Nur hinzufügen wenn diese GPO noch nicht für diesen Key erfasst ist
+                        if ($gpo.DisplayName -notin $settingMap[$key].GPOs) {
+                            $settingMap[$key].GPOs.Add($gpo.DisplayName) | Out-Null
+                        }
+                        $settingMap[$key].Values.Add($s.Value) | Out-Null
+                    }
+                }
+            }
+        } catch { }
+    }
+
+    # Nur Einstellungen behalten die in mehr als einer UNTERSCHIEDLICHEN GPO vorkommen
+    $duplicates = @{}
+    foreach ($key in $settingMap.Keys) {
+        if ($settingMap[$key].GPOs.Count -gt 1) {
+            $duplicates[$key] = $settingMap[$key]
+        }
+    }
+
+    return $duplicates
+}
+
+function Find-ConflictingSettings {
+    <#
+    .SYNOPSIS
+        Findet widersprüchliche Einstellungen auf gleichen OUs.
+    #>
+    param([GpoItem[]]$GPOs)
+
+    $conflicts = @()
+    $settingsByOU = @{}
+
+    foreach ($gpo in $GPOs) {
+        try {
+            $reportXml = [xml](Get-GPOReport -Guid $gpo.Id -ReportType Xml)
+            $gpoOUs = @()
+            $linksTo = $reportXml.GPO.LinksTo
+            if ($linksTo) {
+                foreach ($link in @($linksTo)) {
+                    if ($link.Enabled -eq 'true') {
+                        $gpoOUs += $link.SOMPath
+                    }
+                }
+            }
+
+            # Einstellungen sammeln
+            $allSettings = @()
+            $compExt = $reportXml.GPO.Computer.ExtensionData
+            if ($compExt) {
+                $sections = Get-GPOSettingsFromXml -ExtensionData $compExt
+                foreach ($section in $sections) {
+                    foreach ($s in $section.Settings) {
+                        $allSettings += [PSCustomObject]@{ Key = "[Computer] $($section.ExtensionName) > $($s.Name)"; Value = $s.Value }
+                    }
+                }
+            }
+            $userExt = $reportXml.GPO.User.ExtensionData
+            if ($userExt) {
+                $sections = Get-GPOSettingsFromXml -ExtensionData $userExt
+                foreach ($section in $sections) {
+                    foreach ($s in $section.Settings) {
+                        $allSettings += [PSCustomObject]@{ Key = "[User] $($section.ExtensionName) > $($s.Name)"; Value = $s.Value }
+                    }
+                }
+            }
+
+            foreach ($ou in $gpoOUs) {
+                if (-not $settingsByOU.ContainsKey($ou)) {
+                    $settingsByOU[$ou] = @{}
+                }
+                foreach ($setting in $allSettings) {
+                    if (-not $settingsByOU[$ou].ContainsKey($setting.Key)) {
+                        $settingsByOU[$ou][$setting.Key] = @()
+                    }
+                    $settingsByOU[$ou][$setting.Key] += [PSCustomObject]@{ GPO = $gpo.DisplayName; Value = $setting.Value }
+                }
+            }
+        } catch { }
+    }
+
+    # Konflikte: Gleiche Einstellung, unterschiedliche Werte, gleiche OU, VERSCHIEDENE GPOs
+    $conflictMap = @{}
+    foreach ($ou in $settingsByOU.Keys) {
+        foreach ($settingKey in $settingsByOU[$ou].Keys) {
+            $entries = $settingsByOU[$ou][$settingKey]
+            # Nur betrachten wenn mindestens 2 verschiedene GPOs beteiligt sind
+            $uniqueGPOs = $entries | Select-Object -ExpandProperty GPO -Unique
+            if (@($uniqueGPOs).Count -lt 2) { continue }
+
+            $uniqueValues = $entries | Select-Object -ExpandProperty Value -Unique
+            if (@($uniqueValues).Count -gt 1) {
+                if (-not $conflictMap.ContainsKey($settingKey)) {
+                    $conflictMap[$settingKey] = @{ GPOs = [System.Collections.ArrayList]::new(); OUs = [System.Collections.ArrayList]::new() }
+                }
+                foreach ($e in $entries) {
+                    if ($e.GPO -notin $conflictMap[$settingKey].GPOs) {
+                        $conflictMap[$settingKey].GPOs.Add($e.GPO) | Out-Null
+                    }
+                }
+                if ($ou -notin $conflictMap[$settingKey].OUs) {
+                    $conflictMap[$settingKey].OUs.Add($ou) | Out-Null
+                }
+            }
+        }
+    }
+
+    foreach ($key in $conflictMap.Keys) {
+        $conflicts += [PSCustomObject]@{
+            Setting = $key
+            GPOs = $conflictMap[$key].GPOs
+            OUs = $conflictMap[$key].OUs
+        }
+    }
+
+    return $conflicts
+}
+
+function Export-HTMLtoPDF {
+    <#
+    .SYNOPSIS
+        Konvertiert eine HTML-Datei zu PDF mittels Edge oder Chrome Headless.
+    #>
+    param(
+        [string]$HtmlPath,
+        [string]$OutputPath
+    )
+
+    $pdfFile = [System.IO.Path]::ChangeExtension($HtmlPath, '.pdf')
+
+    # Edge oder Chrome suchen
+    $browsers = @(
+        "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+    )
+
+    $browser = $null
+    foreach ($b in $browsers) {
+        if (Test-Path $b) {
+            $browser = $b
+            break
+        }
+    }
+
+    if (-not $browser) { return $null }
+
+    try {
+        $browserArgs = "--headless --disable-gpu --no-sandbox --print-to-pdf=`"$pdfFile`" --print-to-pdf-no-header --landscape `"$HtmlPath`""
+        Start-Process -FilePath $browser -ArgumentList $browserArgs -Wait -WindowStyle Hidden
+        if ((Test-Path $pdfFile) -and (Get-Item $pdfFile).Length -gt 0) {
+            return $pdfFile
+        }
+    } catch { }
+
+    return $null
+}
+
+function Find-OrphanedGPOs {
+    <#
+    .SYNOPSIS
+        Findet GPOs ohne OU-Verknüpfung in der gesamten Domäne.
+    #>
+    $allGPOs = Get-GPO -All
+    $orphaned = @()
+
+    foreach ($gpo in $allGPOs) {
+        try {
+            $reportXml = [xml](Get-GPOReport -Guid $gpo.Id -ReportType Xml)
+            $linksTo = $reportXml.GPO.LinksTo
+            if (-not $linksTo) {
+                $orphaned += $gpo
+            }
+        } catch {
+            # Falls Report nicht geladen werden kann, als verwaist markieren
+            $orphaned += $gpo
+        }
+    }
+
+    return $orphaned
+}
+
+function Show-ChangeHistory {
+    <#
+    .SYNOPSIS
+        Zeigt eine Änderungshistorie aller GPOs der letzten 90 Tage.
+    #>
+    $allGPOs = Get-GPO -All | Where-Object { $_.ModificationTime -gt (Get-Date).AddDays(-90) } |
+        Sort-Object ModificationTime -Descending
+
+    $L = $script:L
+    $msg = "$($L.historyTitle)`n" + ("=" * 50) + "`n`n"
+
+    foreach ($gpo in $allGPOs) {
+        $daysAgo = [math]::Round(((Get-Date) - $gpo.ModificationTime).TotalDays)
+        $msg += "[$($gpo.ModificationTime.ToString('dd.MM.yyyy HH:mm'))] $($gpo.DisplayName) (vor $daysAgo Tagen)`n"
+    }
+
+    if ($allGPOs.Count -eq 0) {
+        $msg += "Keine Änderungen in den letzten 90 Tagen.`n"
+    }
+
+    return $msg
+}
+
+function Compare-TwoGPOs {
+    <#
+    .SYNOPSIS
+        Vergleicht zwei GPOs und zeigt Unterschiede.
+    #>
+    param(
+        [GpoItem]$GPO1,
+        [GpoItem]$GPO2
+    )
+
+    $L = $script:L
+    $settings1 = @{}
+    $settings2 = @{}
+
+    # GPO1 Einstellungen laden
+    try {
+        $xml1 = [xml](Get-GPOReport -Guid $GPO1.Id -ReportType Xml)
+        $comp1 = $xml1.GPO.Computer.ExtensionData
+        if ($comp1) {
+            $sections = Get-GPOSettingsFromXml -ExtensionData $comp1
+            foreach ($section in $sections) {
+                foreach ($s in $section.Settings) {
+                    $settings1["[Computer] $($section.ExtensionName) > $($s.Name)"] = $s.Value
+                }
+            }
+        }
+        $user1 = $xml1.GPO.User.ExtensionData
+        if ($user1) {
+            $sections = Get-GPOSettingsFromXml -ExtensionData $user1
+            foreach ($section in $sections) {
+                foreach ($s in $section.Settings) {
+                    $settings1["[User] $($section.ExtensionName) > $($s.Name)"] = $s.Value
+                }
+            }
+        }
+    } catch { }
+
+    # GPO2 Einstellungen laden
+    try {
+        $xml2 = [xml](Get-GPOReport -Guid $GPO2.Id -ReportType Xml)
+        $comp2 = $xml2.GPO.Computer.ExtensionData
+        if ($comp2) {
+            $sections = Get-GPOSettingsFromXml -ExtensionData $comp2
+            foreach ($section in $sections) {
+                foreach ($s in $section.Settings) {
+                    $settings2["[Computer] $($section.ExtensionName) > $($s.Name)"] = $s.Value
+                }
+            }
+        }
+        $user2 = $xml2.GPO.User.ExtensionData
+        if ($user2) {
+            $sections = Get-GPOSettingsFromXml -ExtensionData $user2
+            foreach ($section in $sections) {
+                foreach ($s in $section.Settings) {
+                    $settings2["[User] $($section.ExtensionName) > $($s.Name)"] = $s.Value
+                }
+            }
+        }
+    } catch { }
+
+    $allKeys = @($settings1.Keys) + @($settings2.Keys) | Select-Object -Unique | Sort-Object
+
+    $diff = @()
+    foreach ($key in $allKeys) {
+        $val1 = if ($settings1.ContainsKey($key)) { $settings1[$key] } else { "---" }
+        $val2 = if ($settings2.ContainsKey($key)) { $settings2[$key] } else { "---" }
+
+        if ($val1 -ne $val2) {
+            $diff += [PSCustomObject]@{
+                Setting = $key
+                Value1 = $val1
+                Value2 = $val2
+            }
+        }
+    }
+
+    return $diff
+}
+
+#region Dark Mode
+$script:isDarkMode = $false
+
+function Toggle-DarkMode {
+    $script:isDarkMode = -not $script:isDarkMode
+    $L = $script:L
+
+    # Hilfsfunktion: TreeViewItems rekursiv umfärben
+    function Set-TreeItemForeground($items, $brush) {
+        foreach ($item in $items) {
+            $item.Foreground = $brush
+            if ($item.Items.Count -gt 0) { Set-TreeItemForeground $item.Items $brush }
+        }
+    }
+
+    $darkBg = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#1E1E1E")
+    $darkBg2 = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#2D2D2D")
+    $darkBg3 = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#383838")
+    $darkFg = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#E0E0E0")
+    $darkFgDim = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#AAA")
+    $darkAccent = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#4FC3F7")
+
+    $lightBg = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#F5F5F5")
+    $lightFg = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#333")
+    $lightAccent = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#0078D4")
+
+    if ($script:isDarkMode) {
+        # Hauptfenster
+        $window.Background = $darkBg
+
+        # Header-Texte
+        $txtTitle.Foreground = $darkAccent
+        $txtDomain.Foreground = $darkFgDim
+        $txtGpoCount.Foreground = $darkFgDim
+
+        # Alle Labels/TextBlocks im Fenster
+        $lblSearch.Foreground = $darkFg
+        $lblStatusFilter.Foreground = $darkFg
+        $lblFormat.Foreground = $darkFg
+        $lblOutputPath.Foreground = $darkFg
+        $lblFilePrefix.Foreground = $darkFg
+
+        # GroupBoxen (Header + Content)
+        foreach ($gb in @($grpOU, $grpGPO, $grpExport)) {
+            $gb.Foreground = $darkFg
+            $gb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#555")
+        }
+
+        # CheckBoxen
+        $chkSelectAll.Foreground = $darkFg
+        $chkIncludeInherited.Foreground = $darkFg
+        $chkDetailReport.Foreground = $darkFg
+        $chkSaveRawXml.Foreground = $darkFg
+
+        # TextBoxen
+        foreach ($tb in @($txtSearch, $txtOutputPath, $txtFilePrefix)) {
+            $tb.Background = $darkBg2
+            $tb.Foreground = $darkFg
+            $tb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#555")
+        }
+
+        # ComboBoxen - Hintergrund dunkel, Text bleibt schwarz (Dropdown-Popup ist hell)
+        foreach ($cb in @($cmbFormat, $cmbStatusFilter, $cmbLanguage)) {
+            $cb.Background = $darkBg2
+            $cb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#555")
+        }
+
+        # DataGrid
+        $gridGPO.Background = $darkBg2
+        $gridGPO.Foreground = $darkFg
+        $gridGPO.RowBackground = $darkBg2
+        $gridGPO.AlternatingRowBackground = $darkBg3
+        $gridGPO.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#555")
+
+        # DataGrid Spaltenheader - Text schwarz lassen (blauer Header-Hintergrund)
+        $headerStyle = New-Object System.Windows.Style([System.Windows.Controls.Primitives.DataGridColumnHeader])
+        $headerStyle.Setters.Add((New-Object System.Windows.Setter([System.Windows.Controls.Control]::ForegroundProperty, [System.Windows.Media.Brushes]::Black)))
+        $gridGPO.ColumnHeaderStyle = $headerStyle
+
+        # TreeView + alle TreeViewItems auf weiß setzen
+        $treeOU.Background = $darkBg2
+        $treeOU.Foreground = $darkFg
+        $treeOU.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#555")
+        Set-TreeItemForeground $treeOU.Items $darkFg
+
+        # StatusBar
+        $txtStatus.Foreground = $darkFg
+        $statusBar = $txtStatus.Parent.Parent
+        if ($statusBar) {
+            $statusBar.Background = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#252525")
+        }
+
+        $btnDarkMode.Content = "☀️ $($L.lightMode)"
+    } else {
+        # Hauptfenster
+        $window.Background = $lightBg
+
+        # Header-Texte
+        $txtTitle.Foreground = $lightAccent
+        $txtDomain.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#666")
+        $txtGpoCount.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#666")
+
+        # Alle Labels
+        $lblSearch.Foreground = $lightFg
+        $lblStatusFilter.Foreground = $lightFg
+        $lblFormat.Foreground = $lightFg
+        $lblOutputPath.Foreground = $lightFg
+        $lblFilePrefix.Foreground = $lightFg
+
+        # GroupBoxen
+        foreach ($gb in @($grpOU, $grpGPO, $grpExport)) {
+            $gb.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#000")
+            $gb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#D5DFE5")
+        }
+
+        # CheckBoxen
+        $chkSelectAll.Foreground = $lightFg
+        $chkIncludeInherited.Foreground = $lightFg
+        $chkDetailReport.Foreground = $lightFg
+        $chkSaveRawXml.Foreground = $lightFg
+
+        # TextBoxen
+        foreach ($tb in @($txtSearch, $txtOutputPath, $txtFilePrefix)) {
+            $tb.Background = [System.Windows.Media.Brushes]::White
+            $tb.Foreground = $lightFg
+            $tb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#CCC")
+        }
+
+        # ComboBoxen
+        foreach ($cb in @($cmbFormat, $cmbStatusFilter, $cmbLanguage)) {
+            $cb.Background = [System.Windows.Media.Brushes]::White
+            $cb.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#CCC")
+        }
+
+        # DataGrid
+        $gridGPO.Background = [System.Windows.Media.Brushes]::White
+        $gridGPO.Foreground = $lightFg
+        $gridGPO.RowBackground = [System.Windows.Media.Brushes]::White
+        $gridGPO.AlternatingRowBackground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#F9F9F9")
+        $gridGPO.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#CCC")
+        $gridGPO.ColumnHeaderStyle = $null
+
+        # TreeView + TreeViewItems zurücksetzen
+        $treeOU.Background = [System.Windows.Media.Brushes]::White
+        $treeOU.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#000")
+        $treeOU.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#CCC")
+        Set-TreeItemForeground $treeOU.Items ([System.Windows.Media.BrushConverter]::new().ConvertFrom("#000"))
+
+        # StatusBar
+        $txtStatus.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#000")
+        $statusBar = $txtStatus.Parent.Parent
+        if ($statusBar) {
+            $statusBar.Background = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#E8E8E8")
+        }
+
+        $btnDarkMode.Content = "🌙 $($L.darkMode)"
+    }
+}
+#endregion
 
 function Invoke-GPOExport {
     param([GpoItem[]]$GPOsToExport)
@@ -1966,18 +2563,41 @@ function Invoke-GPOExport {
             $exportedFiles += $xmlFolder
         }
 
+        # Duplikate und Konflikte sammeln (für detaillierte Berichte)
+        $duplicateSettings = @{}
+        $conflictData = @()
+        if ($detailed) {
+            $duplicateSettings = Find-DuplicateSettings -GPOs $GPOsToExport
+            $conflictData = Find-ConflictingSettings -GPOs $GPOsToExport
+        }
+
         # HTML Export
         if ($formatIndex -eq 0 -or $formatIndex -eq 2) {
             Set-Status $L.creatingHtml
-            $htmlFile = Export-GPOasHTML -GPOs $GPOsToExport -OutputPath $outputPath -Detailed $detailed -FilePrefix $filePrefix
+            $htmlFile = Export-GPOasHTML -GPOs $GPOsToExport -OutputPath $outputPath -Detailed $detailed -FilePrefix $filePrefix -DuplicateSettings $duplicateSettings -ConflictData $conflictData
             $exportedFiles += $htmlFile
         }
 
         # Markdown Export
         if ($formatIndex -eq 1 -or $formatIndex -eq 2) {
             Set-Status $L.creatingMd
-            $mdFile = Export-GPOasMarkdown -GPOs $GPOsToExport -OutputPath $outputPath -Detailed $detailed -FilePrefix $filePrefix
+            $mdFile = Export-GPOasMarkdown -GPOs $GPOsToExport -OutputPath $outputPath -Detailed $detailed -FilePrefix $filePrefix -DuplicateSettings $duplicateSettings -ConflictData $conflictData
             $exportedFiles += $mdFile
+        }
+
+        # PDF Export
+        if ($formatIndex -eq 3) {
+            Set-Status $L.creatingPdf
+            $htmlFile = Export-GPOasHTML -GPOs $GPOsToExport -OutputPath $outputPath -Detailed $detailed -FilePrefix $filePrefix -DuplicateSettings $duplicateSettings -ConflictData $conflictData
+            $pdfFile = Export-HTMLtoPDF -HtmlPath $htmlFile -OutputPath $outputPath
+            if ($pdfFile) {
+                $exportedFiles += $pdfFile
+                # HTML-Zwischendatei entfernen
+                Remove-Item -Path $htmlFile -Force -ErrorAction SilentlyContinue
+            } else {
+                $exportedFiles += $htmlFile
+                [System.Windows.MessageBox]::Show($L.pdfError, $L.exportErrorTitle, "OK", "Warning")
+            }
         }
 
         $fileList = ($exportedFiles | ForEach-Object { Split-Path $_ -Leaf }) -join "`n"
@@ -2137,6 +2757,172 @@ $cmbLanguage.Add_SelectionChanged({
     if ($newLang -ne $script:lang) {
         Set-AppLanguage $newLang
         Apply-Language
+    }
+})
+
+# Dark Mode Toggle
+$btnDarkMode.Add_Click({ Toggle-DarkMode })
+
+# Verwaiste GPOs suchen
+$btnOrphaned.Add_Click({
+    $L = $script:L
+    Set-Status $L.loadingOrphaned
+    $progressBar.Visibility = "Visible"
+    $progressBar.IsIndeterminate = $true
+    $window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Render, [Action]{})
+
+    try {
+        $orphaned = Find-OrphanedGPOs
+
+        if ($orphaned.Count -eq 0) {
+            [System.Windows.MessageBox]::Show($L.noOrphaned, $L.orphanedGpos, "OK", "Information")
+        } else {
+            # Verwaiste GPOs ins Grid laden
+            $script:allGpoItems = [System.Collections.ObjectModel.ObservableCollection[GpoItem]]::new()
+            foreach ($gpo in $orphaned) {
+                $item = New-Object GpoItem
+                $item.Selected = $false
+                $item.DisplayName = $gpo.DisplayName
+                $item.Id = $gpo.Id
+                $item.GpoStatusKey = $gpo.GpoStatus.ToString()
+                $item.GpoStatus = switch ($gpo.GpoStatus) {
+                    "AllSettingsEnabled"        { $L.allEnabled }
+                    "AllSettingsDisabled"        { $L.allDisabled }
+                    "UserSettingsDisabled"       { $L.userDisabled }
+                    "ComputerSettingsDisabled"   { $L.computerDisabled }
+                    default                      { $gpo.GpoStatus }
+                }
+                $item.LinkType = "---"
+                $item.CreationTime = $gpo.CreationTime
+                $item.ModificationTime = $gpo.ModificationTime
+                $item.IsRecentlyModified = ($gpo.ModificationTime -gt (Get-Date).AddDays(-30))
+                $item.DomainName = $gpo.DomainName
+                $script:allGpoItems.Add($item)
+            }
+            $script:gpoSearchCache = @{}
+            $script:gpoSearchCacheBuilt = $false
+            Update-GpoFilter
+            $msg = ($L.orphanedFound -f $orphaned.Count)
+            [System.Windows.MessageBox]::Show($msg, $L.orphanedGpos, "OK", "Warning")
+        }
+    } catch {
+        [System.Windows.MessageBox]::Show("$($L.loadError) $($_.Exception.Message)", $L.exportErrorTitle, "OK", "Error")
+    } finally {
+        $progressBar.Visibility = "Collapsed"
+        Set-Status $L.statusReady
+    }
+})
+
+# Änderungshistorie
+$btnHistory.Add_Click({
+    $L = $script:L
+    Set-Status $L.historyBtn
+    $progressBar.Visibility = "Visible"
+    $progressBar.IsIndeterminate = $true
+    $window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Render, [Action]{})
+
+    try {
+        $historyMsg = Show-ChangeHistory
+
+        # In neuem Fenster anzeigen
+        $histWindow = New-Object System.Windows.Window
+        $histWindow.Title = $L.historyTitle
+        $histWindow.Width = 700
+        $histWindow.Height = 500
+        $histWindow.WindowStartupLocation = "CenterOwner"
+        $histWindow.Owner = $window
+
+        $textBox = New-Object System.Windows.Controls.TextBox
+        $textBox.Text = $historyMsg
+        $textBox.IsReadOnly = $true
+        $textBox.FontFamily = New-Object System.Windows.Media.FontFamily("Consolas")
+        $textBox.FontSize = 12
+        $textBox.VerticalScrollBarVisibility = "Auto"
+        $textBox.HorizontalScrollBarVisibility = "Auto"
+        $textBox.TextWrapping = "NoWrap"
+        $textBox.Margin = New-Object System.Windows.Thickness(10)
+
+        if ($script:isDarkMode) {
+            $histWindow.Background = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#1E1E1E")
+            $textBox.Background = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#2D2D2D")
+            $textBox.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#DDD")
+        }
+
+        $histWindow.Content = $textBox
+        $histWindow.ShowDialog() | Out-Null
+    } catch {
+        [System.Windows.MessageBox]::Show("$($L.loadError) $($_.Exception.Message)", $L.exportErrorTitle, "OK", "Error")
+    } finally {
+        $progressBar.Visibility = "Collapsed"
+        Set-Status $L.statusReady
+    }
+})
+
+# GPO-Vergleich
+$btnDiff.Add_Click({
+    $L = $script:L
+    $selectedGPOs = @($gridGPO.ItemsSource | Where-Object { $_.Selected -eq $true })
+
+    if ($selectedGPOs.Count -ne 2) {
+        [System.Windows.MessageBox]::Show($L.diffSelectTwo, $L.diffTitle, "OK", "Warning")
+        return
+    }
+
+    Set-Status "$($L.diffTitle)..."
+    $progressBar.Visibility = "Visible"
+    $progressBar.IsIndeterminate = $true
+    $window.Dispatcher.Invoke([System.Windows.Threading.DispatcherPriority]::Render, [Action]{})
+
+    try {
+        $diffs = Compare-TwoGPOs -GPO1 $selectedGPOs[0] -GPO2 $selectedGPOs[1]
+
+        # Ergebnis in neuem Fenster anzeigen
+        $diffWindow = New-Object System.Windows.Window
+        $diffWindow.Title = "$($L.diffTitle): $($selectedGPOs[0].DisplayName) vs $($selectedGPOs[1].DisplayName)"
+        $diffWindow.Width = 900
+        $diffWindow.Height = 600
+        $diffWindow.WindowStartupLocation = "CenterOwner"
+        $diffWindow.Owner = $window
+
+        $msg = "$($L.diffTitle)`n"
+        $msg += "$($L.diffGpo1): $($selectedGPOs[0].DisplayName)`n"
+        $msg += "$($L.diffGpo2): $($selectedGPOs[1].DisplayName)`n"
+        $msg += ("=" * 80) + "`n`n"
+
+        if ($diffs.Count -eq 0) {
+            $msg += "Keine Unterschiede gefunden / No differences found.`n"
+        } else {
+            $msg += "$($diffs.Count) $($L.diffDifference)(e):`n`n"
+            foreach ($d in $diffs) {
+                $msg += "$($L.diffSetting): $($d.Setting)`n"
+                $msg += "  $($selectedGPOs[0].DisplayName): $($d.Value1)`n"
+                $msg += "  $($selectedGPOs[1].DisplayName): $($d.Value2)`n`n"
+            }
+        }
+
+        $textBox = New-Object System.Windows.Controls.TextBox
+        $textBox.Text = $msg
+        $textBox.IsReadOnly = $true
+        $textBox.FontFamily = New-Object System.Windows.Media.FontFamily("Consolas")
+        $textBox.FontSize = 12
+        $textBox.VerticalScrollBarVisibility = "Auto"
+        $textBox.HorizontalScrollBarVisibility = "Auto"
+        $textBox.TextWrapping = "NoWrap"
+        $textBox.Margin = New-Object System.Windows.Thickness(10)
+
+        if ($script:isDarkMode) {
+            $diffWindow.Background = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#1E1E1E")
+            $textBox.Background = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#2D2D2D")
+            $textBox.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFrom("#DDD")
+        }
+
+        $diffWindow.Content = $textBox
+        $diffWindow.ShowDialog() | Out-Null
+    } catch {
+        [System.Windows.MessageBox]::Show("$($L.loadError) $($_.Exception.Message)", $L.exportErrorTitle, "OK", "Error")
+    } finally {
+        $progressBar.Visibility = "Collapsed"
+        Set-Status $L.statusReady
     }
 })
 
