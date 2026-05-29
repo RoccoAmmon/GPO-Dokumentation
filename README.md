@@ -3,7 +3,7 @@
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://docs.microsoft.com/en-us/powershell/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20Server%202016%2B-lightgrey.svg)](https://www.microsoft.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.0.2-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-2.0.3-brightgreen.svg)]()
 [![Language](https://img.shields.io/badge/Language-DE%20%7C%20EN-blueviolet.svg)]()
 
 > Ein umfassendes PowerShell WPF-Tool zur automatisierten Dokumentation von Gruppenrichtlinien (GPOs) in Active Directory-Umgebungen. Mit OU-Baumansicht, Volltextsuche, farbcodiertem HTML-Report und Markdown-Export.

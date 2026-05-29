@@ -7,8 +7,8 @@
     Unterstützt Volltextsuche, Farbcodierung, OU-Baumstruktur und Mehrsprachigkeit (DE/EN).
 .NOTES
     Autor:      Rocco Ammon
-    Datum:      28.05.2026
-    Version:    2.0.2
+    Datum:      29.05.2026
+    Version:    2.0.3
     Benötigt:   ActiveDirectory-Modul, GroupPolicy-Modul, RSAT-Tools
     Installiert fehlende RSAT-Features automatisch (erfordert Admin-Rechte).
 .LINK
@@ -1954,7 +1954,8 @@ function Invoke-GPOExport {
         # Roh-XML speichern
         if ($saveRawXml) {
             $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm"
-            $xmlFolder = Join-Path $outputPath "GPO-XML_$timestamp"
+            $xmlFolderName = if ($filePrefix) { "GPO-XML_${filePrefix}_$timestamp" } else { "GPO-XML_$timestamp" }
+            $xmlFolder = Join-Path $outputPath $xmlFolderName
             New-Item -Path $xmlFolder -ItemType Directory -Force | Out-Null
             foreach ($gpo in $GPOsToExport) {
                 Set-Status "$($L.savingXml) $($gpo.DisplayName)..."
