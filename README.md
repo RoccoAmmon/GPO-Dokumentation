@@ -93,14 +93,14 @@
 
 ## 🚀 Installation
 
-```powershell
+powershell
 # Repository klonen
-git clone https://github.com/Yasty25/GPO-Documentation.git
+git clone https://github.com/RoccoAmmon/GPO-Documentation.git
 cd GPO-Documentation
 
 # Direkt starten (als Administrator)
 .\GPO-Documentation-GUI.ps1
-```
+
 
 > ⚠️ Das Skript muss als **Administrator** ausgeführt werden. Fehlende RSAT-Features werden automatisch installiert.
 
@@ -175,7 +175,7 @@ Umschaltung jederzeit über das **Sprach-Dropdown** im Header möglich. Alle Lab
 
 ## 🏗️ Architektur
 
-```
+
 GPO-Documentation-GUI.ps1
 ├── RSAT Auto-Installation
 ├── Sprachsystem (DE/EN Dictionary)
@@ -195,7 +195,7 @@ GPO-Documentation-GUI.ps1
 │   ├── Export-GPOasHTML()
 │   └── Export-GPOasMarkdown()
 └── Event-Handler
-```
+
 
 ---
 
