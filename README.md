@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.1-brightgreen.svg)]()
 [![Language](https://img.shields.io/badge/Language-DE%20%7C%20EN-blueviolet.svg)]()
+[![Downloads](https://img.shields.io/github/downloads/RoccoAmmon/GPO-Dokumentation/total?label=Downloads&color=orange)](https://github.com/RoccoAmmon/GPO-Dokumentation/releases)
 
 > Ein umfassendes PowerShell WPF-Tool zur automatisierten Dokumentation von Gruppenrichtlinien (GPOs) in Active Directory-Umgebungen. Mit OU-Baumansicht, Volltextsuche, farbcodiertem HTML-Report und Markdown-Export.
 
